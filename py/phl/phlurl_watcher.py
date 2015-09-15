@@ -26,9 +26,12 @@ from __future__ import print_function
 import collections
 import hashlib
 import json
+import logging
 import os
 
 import phlurl_request
+
+_LOGGER = logging.getLogger(__name__)
 
 
 _HashHexdigestHasChanged = collections.namedtuple(
@@ -48,6 +51,7 @@ class Watcher(object):
     def _request_and_set_has_changed(self, url, has_changed):
         (status, content) = self._requester_object.get(url)
         # pylint: disable=E1101
+        _LOGGER.info(content)
         self._results[url] = _HashHexdigestHasChanged(
             hashlib.sha1(content).hexdigest(), has_changed)
         # pylint: enable=E1101
@@ -103,6 +107,7 @@ class Watcher(object):
             # do the 'is' comparison rather than 'is equal to'
             #
             # pylint: disable=E1101
+            _LOGGER.info(contents)
             new_hash = hashlib.sha1(contents).hexdigest()
             # pylint: enable=E1101
             old_hash = old_result.hash_hexdigest

@@ -23,18 +23,44 @@ import itertools
 import json
 import os
 import shutil
+import stat
+import socket
 import subprocess
 import tempfile
+import time
 
 import phldef_conduit
 import phlgit_push
+import phlgit_showref
 import phlgitu_fixture
 import phlsys_fs
 import phlsys_git
+import phlsys_pid
 import phlsys_subprocess
 
 _USAGE_EXAMPLES = """
 """
+
+_PRE_RECEIVE_HOLD_DEV_ARCYD_REFS = """
+#! /bin/sh
+if grep 'refs/heads/dev/arcyd/' -; then
+    while [ -f command/hold_dev_arcyd_refs ]; do
+        sleep 1
+    done
+fi
+""".lstrip()
+
+_EXTERNAL_REPORT_COUNTER = """
+#! /bin/sh
+if [ ! -f cycle_counter ]; then
+    echo 0 > cycle_counter
+    fi
+
+COUNT=$(cat cycle_counter)
+COUNT=$(expr $COUNT + 1)
+
+echo $COUNT > cycle_counter
+""".lstrip()
 
 
 def main():
@@ -107,6 +133,14 @@ def main():
 
     with phlsys_fs.chtmpdir_context():
         _do_tests(args)
+
+
+def pick_free_port():
+    sock = socket.socket()
+    sock.bind(('', 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
 
 
 class _Worker(object):
@@ -199,6 +233,20 @@ class _Worker(object):
         return self._barc
 
 
+class SimpleWebServer(object):
+
+    def __init__(self, root_path, port):
+        self._root_path = root_path
+        self._process = subprocess.Popen(
+            ['python', '-m', 'SimpleHTTPServer', str(port)],
+            cwd=root_path)
+
+    def close(self):
+        pid = self._process.pid
+        phlsys_pid.request_terminate(pid)
+        self._process.wait()
+
+
 class _SharedRepo(object):
 
     def __init__(
@@ -211,10 +259,28 @@ class _SharedRepo(object):
             bob):
 
         self._root_dir = root_dir
-        central_path = os.path.join(self._root_dir, 'central')
-        os.makedirs(central_path)
-        self._central_repo = phlsys_git.Repo(central_path)
+        self.central_path = os.path.join(self._root_dir, 'central')
+        os.makedirs(self.central_path)
+        self._central_repo = phlsys_git.Repo(self.central_path)
         self._central_repo("init", "--bare")
+        self.web_port = pick_free_port()
+        shutil.move(
+            os.path.join(self.central_path, 'hooks/post-update.sample'),
+            os.path.join(self.central_path, 'hooks/post-update'))
+
+        self._command_hold_path = os.path.join(
+            self.central_path, 'command/hold_dev_arcyd_refs')
+
+        pre_receive_path = os.path.join(self.central_path, 'hooks/pre-receive')
+        phlsys_fs.write_text_file(
+            pre_receive_path,
+            _PRE_RECEIVE_HOLD_DEV_ARCYD_REFS)
+        mode = os.stat(pre_receive_path).st_mode
+        os.chmod(pre_receive_path, mode | stat.S_IEXEC)
+
+        self._web = SimpleWebServer(
+            self.central_path,
+            self.web_port)
 
         self._workers = []
         for account in (alice, bob):
@@ -240,6 +306,18 @@ class _SharedRepo(object):
             else:
                 self._workers[-1].repo('checkout', 'master')
 
+    def hold_dev_arcyd_refs(self):
+        phlsys_fs.write_text_file(
+            self._command_hold_path,
+            _PRE_RECEIVE_HOLD_DEV_ARCYD_REFS)
+
+    def release_dev_arcyd_refs(self):
+        os.remove(self._command_hold_path)
+
+    @property
+    def snoop_url(self):
+        return "http://127.0.0.1:{}/info/refs".format(self.web_port)
+
     @property
     def central_repo(self):
         return self._central_repo
@@ -255,6 +333,9 @@ class _SharedRepo(object):
     @property
     def bob(self):
         return self._workers[1]
+
+    def close(self):
+        self._web.close()
 
 
 class _CommandWithWorkingDirectory(object):
@@ -278,20 +359,89 @@ class _ArcydInstance(object):
         self._root_dir = root_dir
         self._command = _CommandWithWorkingDirectory(arcyd_command, root_dir)
 
+        count_cycles_script_path = os.path.join(
+            self._root_dir, 'count_cycles.sh')
+        phlsys_fs.write_text_file(
+            count_cycles_script_path,
+            _EXTERNAL_REPORT_COUNTER)
+        mode = os.stat(count_cycles_script_path).st_mode
+        os.chmod(count_cycles_script_path, mode | stat.S_IEXEC)
+
+        self._has_enabled_count_cycles = False
+        self._has_started_daemon = False
+        self._has_set_overrun_secs = False
+
     def __call__(self, *args, **kwargs):
         return self._command(*args, **kwargs)
+
+    def set_overrun_secs(self, overrun_secs):
+        assert not self._has_set_overrun_secs
+        config_path = os.path.join(self._root_dir, 'configfile')
+        config_text = phlsys_fs.read_text_file(config_path)
+        config_text += '\n--overrun-secs\n{}'.format(overrun_secs)
+        phlsys_fs.write_text_file(config_path, config_text)
+        self._has_set_overrun_secs = True
+
+    def enable_count_cycles_script(self):
+        assert not self._has_enabled_count_cycles
+        config_path = os.path.join(self._root_dir, 'configfile')
+        config_text = phlsys_fs.read_text_file(config_path)
+        config_text += '\n--external-report-command\ncount_cycles.sh'
+        phlsys_fs.write_text_file(config_path, config_text)
+        self._has_enabled_count_cycles = True
+
+    def count_cycles(self):
+        assert self._has_enabled_count_cycles
+        counter_path = os.path.join(self._root_dir, 'cycle_counter')
+        if not os.path.exists(counter_path):
+            return None
+        return int(phlsys_fs.read_text_file(counter_path).strip())
+
+    def wait_one_or_more_cycles(self):
+        assert self._has_enabled_count_cycles
+        assert self._has_started_daemon
+        while self.count_cycles() is None:
+            time.sleep(1)
+        start = self.count_cycles()
+        count = start
+        while count < start + 2:
+            count = self.count_cycles()
+            print(start, count)
+            time.sleep(1)
 
     def run_once(self):
         return self('start', '--foreground', '--no-loop')
 
-    def debug_log(self):
-        debug_path = '{}/var/log/debug'.format(self._root_dir)
+    def start_daemon(self):
+        self._has_started_daemon = True
+        return self('start')
 
-        if os.path.isfile(debug_path):
+    def stop_daemon(self):
+        self._has_started_daemon = False
+        return self('stop')
+
+    @contextlib.contextmanager
+    def daemon_context(self):
+        self.start_daemon()
+        try:
+            yield
+        finally:
+            self.stop_daemon()
+
+    def _read_log(self, name):
+        log_path = '{}/var/log/{}'.format(self._root_dir, name)
+
+        if os.path.isfile(log_path):
             return phlsys_fs.read_text_file(
-                debug_path)
+                log_path)
         else:
             return ""
+
+    def info_log(self):
+        return self._read_log('info')
+
+    def debug_log(self):
+        return self._read_log('debug')
 
 
 class _Fixture(object):
@@ -341,7 +491,14 @@ class _Fixture(object):
 
     def setup_arcyds(self, arcyd_user, arcyd_email, arcyd_cert, phab_uri):
         for arcyd in self.arcyds:
-            arcyd('init', '--arcyd-email', arcyd_email)
+            arcyd(
+                'init',
+                '--arcyd-email',
+                arcyd_email,
+                '--max-workers',
+                '2',
+                '--sleep-secs',
+                '1')
 
             arcyd(
                 'add-phabricator',
@@ -352,13 +509,9 @@ class _Fixture(object):
                 '--arcyd-user', arcyd_user,
                 '--arcyd-cert', arcyd_cert)
 
-            repo_url_format = '{}/{{}}/central'.format(self.repo_root_dir)
-            arcyd(
-                'add-repohost',
-                '--name', 'localdir',
-                '--repo-url-format', repo_url_format)
-
     def close(self):
+        for r in self._repos:
+            r.close()
         shutil.rmtree(self._root_dir)
 
     def launch_debug_shell(self):
@@ -391,12 +544,13 @@ def _do_tests(args):
 
     # pychecker makes us declare this before 'with'
     arcyd_count = 1
+    repo_count = 4
     fixture = _Fixture(
         arcyd_cmd_path,
         barc_cmd_path,
         arcyon_cmd_path,
         phab_uri,
-        args.repo_count,
+        repo_count,
         arcyd_count,
         args.alice_user_email_cert,
         args.bob_user_email_cert)
@@ -404,12 +558,32 @@ def _do_tests(args):
 
     with contextlib.closing(fixture):
         try:
-            run_all_interactions(fixture)
-        except:
+            _test_push_during_overrun(fixture)
+        except Exception:
             print(fixture.arcyds[0].debug_log())
             if args.enable_debug_shell:
                 fixture.launch_debug_shell()
             raise
+
+    # arcyd_count = 1
+    # fixture = _Fixture(
+    #     arcyd_cmd_path,
+    #     barc_cmd_path,
+    #     arcyon_cmd_path,
+    #     phab_uri,
+    #     args.repo_count,
+    #     arcyd_count,
+    #     args.alice_user_email_cert,
+    #     args.bob_user_email_cert)
+    # fixture.setup_arcyds(arcyd_user, arcyd_email, arcyd_cert, phab_uri)
+    # with contextlib.closing(fixture):
+    #     try:
+    #         run_all_interactions(fixture)
+    #     except Exception:
+    #         print(fixture.arcyds[0].debug_log())
+    #         if args.enable_debug_shell:
+    #             fixture.launch_debug_shell()
+    #         raise
 
 
 def run_all_interactions(fixture):
@@ -417,9 +591,10 @@ def run_all_interactions(fixture):
     arcyd_generator = _arcyd_run_once_scenario(arcyd, fixture.repos)
 
     interaction_tuple = (
-        _user_story_happy_path,
-        _user_story_request_changes,
-        _user_story_reviewers_as_title,
+        # _user_story_happy_path,
+        # _user_story_request_changes,
+        # _user_story_reviewers_as_title,
+        # _user_story_repush_deleted_tracker,
     )
 
     for interaction in interaction_tuple:
@@ -427,6 +602,42 @@ def run_all_interactions(fixture):
             interaction,
             arcyd_generator,
             fixture)
+
+
+def _test_push_during_overrun(fixture):
+    arcyd = fixture.arcyds[0]
+    repo = fixture.repos[0]
+
+    for i, r in enumerate(fixture.repos):
+        repo_url_format = r.central_path
+        arcyd(
+            'add-repohost',
+            '--name', 'repohost-{}'.format(i),
+            '--repo-url-format', repo_url_format,
+            '--repo-snoop-url-format', r.snoop_url)
+        arcyd(
+            'add-repo',
+            'localphab',
+            'repohost-{}'.format(i),
+            'repo-{}'.format(i))
+
+    branch1_name = '_test_push_during_overrun'
+    branch2_name = '_test_push_during_overrun2'
+
+    arcyd.enable_count_cycles_script()
+    arcyd.set_overrun_secs(1)
+    repo.hold_dev_arcyd_refs()
+    repo.alice.push_new_review_branch(branch1_name)
+    with arcyd.daemon_context():
+        arcyd.wait_one_or_more_cycles()
+        repo.alice.push_new_review_branch(branch2_name)
+        arcyd.wait_one_or_more_cycles()
+        repo.release_dev_arcyd_refs()
+        arcyd.wait_one_or_more_cycles()
+
+    repo.alice.fetch()
+    reviews = repo.alice.list_reviews()
+    assert len(reviews) == 2
 
 
 def run_interaction(user_scenario, arcyd_generator, fixture):
@@ -439,11 +650,22 @@ def run_interaction(user_scenario, arcyd_generator, fixture):
 def _arcyd_run_once_scenario(arcyd, repo_list):
 
     # Add repositories to the single Arcyd instance
-    for i in xrange(len(repo_list)):
-        arcyd('add-repo', 'localphab', 'localdir', 'repo-{}'.format(i))
+    for i, repo in enumerate(repo_list):
+        repo_url_format = repo.central_path
+        arcyd(
+            'add-repohost',
+            '--name', 'repohost-{}'.format(i),
+            '--repo-url-format', repo_url_format,
+            '--repo-snoop-url-format', repo.snoop_url)
+        arcyd(
+            'add-repo',
+            'localphab',
+            'repohost-{}'.format(i),
+            'repo-{}'.format(i))
 
     while True:
         arcyd.run_once()
+        # print(arcyd.debug_log())
         yield
 
 
@@ -526,6 +748,57 @@ def _user_story_reviewers_as_title(repo):
     print("Check review landed")
     repo.bob.fetch()
     assert len(repo.bob.list_reviews()) == 0
+
+    yield "Finished"
+
+
+def _user_story_repush_deleted_tracker(repo):
+
+    tracker_prefix = 'refs/heads/dev/arcyd/trackers/rbranch/--/-/bad_prerev/'
+    ping_ref = tracker_prefix + 'r/ping/ping/none'
+
+    def print_cache():
+        print(phlsys_fs.read_text_file(
+            os.path.join(
+                repo._root_dir,
+                '..',
+                '..',
+                'arcyds',
+                'arcyd-0',
+                '.arcyd.urlwatcher.cache')))
+
+    yield "Startup"
+    print_cache()
+
+    print('push ping branch')
+    repo.alice.repo(
+        'push',
+        'origin',
+        'master:' + ping_ref)
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref in refs
+
+    yield "Removing ping branch"
+    print_cache()
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref not in refs
+
+    print('push ping branch again')
+    repo.alice.repo(
+        'push',
+        'origin',
+        'master:' + ping_ref)
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref in refs
+
+    yield "Removing ping branch again"
+    print_cache()
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref not in refs
 
     yield "Finished"
 
