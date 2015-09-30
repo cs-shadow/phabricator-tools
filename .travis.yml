@@ -22,6 +22,10 @@ addons:
     - unzip
     - wget
 
+before_install:
+    script:
+        - download_phab.sh
+
 # Install dependencies using pip
 install:
   - pip install autopep8
