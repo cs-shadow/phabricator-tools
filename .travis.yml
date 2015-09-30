@@ -29,6 +29,8 @@ before_install:
 
 # Install dependencies using pip
 install:
+  - virtualenv venv
+  - source venv/bin/activate
   - pip install autopep8
   - pip install docformatter
   - pip install flake8
@@ -40,7 +42,7 @@ install:
   - pip install snakefood
 
 # command to run tests
-script: ./static_tests.sh
+# script: ./static_tests.sh
 
 notifications:
     email: false
