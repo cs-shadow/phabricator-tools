@@ -23,8 +23,7 @@ addons:
     - wget
 
 before_install:
-    script:
-        - download_phab.sh
+    - download_phab.sh
 
 # Install dependencies using pip
 install:
