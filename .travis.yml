@@ -41,9 +41,10 @@ install:
   - pip install http://sourceforge.net/projects/pychecker/files/pychecker/0.8.19/pychecker-0.8.19.tar.gz/download
   - pip install pylint
   - pip install snakefood
+  - cp -r $TRAVIS_BUILD_DIR .
 
 # command to run tests
-# script: ./static_tests.sh
+script: ./static_tests.sh
 
 notifications:
     email: false
