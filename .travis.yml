@@ -9,6 +9,20 @@ addons:
   apt:
     packages:
     - python-pip
+    - git
+    - mysql-server
+    - apache2
+    - dpkg-dev
+    - php5
+    - php5-mysql
+    - php5-gd
+    - php5-dev
+    - php5-curl
+    - php-apc
+    - php5-cli
+    - php5-json
+    - unzip
+    - wget
 
 # Install dependencies using pip
 install:
