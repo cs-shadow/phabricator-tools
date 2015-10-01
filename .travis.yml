@@ -48,6 +48,7 @@ before_script:
   - sudo dpkg -i puppetlabs-release-trusty.deb
   - sudo apt-get update
   - sudo apt-get install puppet
+  - cp build/travis-ci-manifest.pp vagrant/puppet/phabricator/manifests/default.pp
   - sudo puppet apply vagrant/puppet/phabricator/manifests/default.pp --modulepath vagrant/puppet
 # command to run tests
 script:
