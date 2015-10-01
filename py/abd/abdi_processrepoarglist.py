@@ -203,11 +203,9 @@ class _RecordingWatcherWrapper(object):
         self._tested_urls.add(url)
         return self._watcher.has_url_recently_changed(url)
 
-    def get_data_for_merging(self):
-        data = self._watcher.get_data_for_merging()
-        tested = self._tested_urls
-        new_data = {k: v for k, v in data.iteritems() if k in tested}
-        return new_data
+    @property
+    def tested_urls(self):
+        return self._tested_urls
 
 
 class _RepoActiveRetryState(object):
@@ -319,7 +317,7 @@ class _ArcydManagedRepository(object):
         return (
             self._review_cache.active_reviews - old_active_reviews,
             self._active_state,
-            watcher.get_data_for_merging(),
+            watcher.tested_urls,
             self._refcache_repo.peek_hash_ref_pairs(),
             self._differ_cache.get_cache()
         )
@@ -329,7 +327,7 @@ class _ArcydManagedRepository(object):
         (
             active_reviews,
             active_state,
-            watcher_data,
+            tested_urls,
             hash_ref_pairs,
             differ_cache
         ) = results
@@ -340,7 +338,8 @@ class _ArcydManagedRepository(object):
         self._differ_cache.set_cache(differ_cache)
 
         # merge in the consumed urls from the worker
-        self._url_watcher_wrapper.watcher.merge_data_consume_only(watcher_data)
+        for url in tested_urls:
+            self._url_watcher_wrapper.watcher.has_url_recently_changed(url)
 
 
 class _ConduitManager(object):
