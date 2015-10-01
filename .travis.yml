@@ -43,7 +43,7 @@ install:
   - pip install snakefood
 
 # command to run tests
-script: ./static_tests.sh
+script: ./precommit.sh
 
 notifications:
     email: false
