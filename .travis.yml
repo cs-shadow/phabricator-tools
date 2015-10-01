@@ -6,21 +6,20 @@ php:
 addons:
   apt:
     packages:
-    # - python-pip
-    # - python-virtualenv
-    # - git
-    # - mysql-server
-    # - apache2
-    # - dpkg-dev
-    # - php5
-    # - php5-mysql
-    # - php5-gd
-    # - php5-dev
-    # - php5-curl
-    # - php5-cli
-    # - unzip
-    # - wget
-    # - time
+    - python-pip
+    - python-virtualenv
+    - mysql-server
+    - apache2
+    - dpkg-dev
+    - php5
+    - php5-mysql
+    - php5-gd
+    - php5-dev
+    - php5-curl
+    - php5-cli
+    - unzip
+    - wget
+    - time
 
 before_install:
   - ./download_phab.sh
