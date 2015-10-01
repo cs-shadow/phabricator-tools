@@ -42,7 +42,7 @@ before_script:
   - git config --global user.email "tests@phab.test"
   - git config --global user.name "Test User"
   - sudo cp build/travis-ci-apache /etc/apache2/sites-available/phab.conf
-  - sudo ln -s /etc/apache2/sites-enabled/phab.conf /etc/apache2/sites-available/phab.conf
+  - sudo ln -s /etc/apache2/sites-available/phab.conf /etc/apache2/sites-enabled/phab.conf
   - sudo rm -f /etc/apache2/sites-enabled/000-default.conf
   - sudo a2enmod rewrite
   - sudo service apache2 restart
