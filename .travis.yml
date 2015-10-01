@@ -21,9 +21,6 @@ addons:
     - wget
     - time
 
-before_install:
-  - ./download_phab.sh
-
 # Install dependencies using pip
 install:
   - virtualenv venv
@@ -54,10 +51,8 @@ before_script:
   - sudo service apache2 restart
 # command to run tests
 script:
-  - curl 127.0.0.1
-  - sudo cat /var/log/apache2/error.log
   # - ./static_tests.sh
-  # - ./unit_tests.sh
+  - ./unit_tests.sh
 
 notifications:
     email: false
