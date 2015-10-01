@@ -4,7 +4,7 @@
   <Directory "%TRAVIS_BUILD_DIR%/phabricator/phabricator/webroot">
     Options Indexes FollowSymLinks MultiViews ExecCGI
     AllowOverride None
-    Require all granted
+    Allow from all
   </Directory>
 
   RewriteEngine on
