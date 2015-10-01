@@ -50,6 +50,8 @@ before_script:
   - sudo apt-get install puppet
   - cp build/travis-ci-manifest.pp vagrant/puppet/phabricator/manifests/default.pp
   - sudo puppet apply vagrant/puppet/phabricator/manifests/default.pp --modulepath vagrant/puppet
+  - sudo cp -f build/travis-ci-apache /etc/apache2/sites-available/default
+  - sudo service apache2 restart
 # command to run tests
 script:
   - curl 127.0.0.1

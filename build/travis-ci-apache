@@ -1,7 +1,7 @@
 <VirtualHost *:80>
-  DocumentRoot %TRAVIS_BUILD_DIR%/phabricator/phabricator/webroot
+  DocumentRoot /phabricator/instances/dev/phabricator/webroot
 
-  <Directory "%TRAVIS_BUILD_DIR%/phabricator/phabricator/webroot">
+  <Directory "/phabricator/instances/dev/phabricator/webroot">
     Options Indexes FollowSymLinks MultiViews ExecCGI
     AllowOverride None
     Allow from all
