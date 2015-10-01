@@ -41,17 +41,14 @@ install:
 before_script:
   - git config --global user.email "tests@phab.test"
   - git config --global user.name "Test User"
-  # TODO: Make the following commands run without sudo. At the time of writing
+  # TODO: Make the following things happen without sudo. At the time of writing
   # this script, Travis CI was not automatically picking up virtual host config
   # hence we had to use sudo instead.
-  - sudo cp build/travis-ci-apache /etc/apache2/sites-available/default
-  - sudo sed -e "s?%TRAVIS_BUILD_DIR%?$(pwd)?g" --in-place /etc/apache2/sites-available/default
-  - sudo a2enmod rewrite
-  - sudo service apache2 restart
-  - sudo service mysql restart
-  - mysql < vagrant/puppet/phabricator/files/initial.db
-  - ./phabricator/phabricator/bin/storage upgrade --force
-
+  - wget https://apt.puppetlabs.com/puppetlabs-release-trusty.deb
+  - sudo dpkg -i puppetlabs-release-trusty.deb
+  - sudo apt-get update
+  - sudo apt-get install puppet
+  - sudo puppet apply vagrant/puppet/phabricator/manifests/default.pp --modulepath vagrant/puppet
 # command to run tests
 script:
   # - ./static_tests.sh
