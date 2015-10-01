@@ -31,6 +31,7 @@ import time
 
 import phldef_conduit
 import phlgit_push
+import phlgit_showref
 import phlgitu_fixture
 import phlsys_fs
 import phlsys_git
@@ -649,11 +650,22 @@ def run_interaction(user_scenario, arcyd_generator, fixture):
 def _arcyd_run_once_scenario(arcyd, repo_list):
 
     # Add repositories to the single Arcyd instance
-    for i in xrange(len(repo_list)):
-        arcyd('add-repo', 'localphab', 'localdir', 'repo-{}'.format(i))
+    for i, repo in enumerate(repo_list):
+        repo_url_format = repo.central_path
+        arcyd(
+            'add-repohost',
+            '--name', 'repohost-{}'.format(i),
+            '--repo-url-format', repo_url_format,
+            '--repo-snoop-url-format', repo.snoop_url)
+        arcyd(
+            'add-repo',
+            'localphab',
+            'repohost-{}'.format(i),
+            'repo-{}'.format(i))
 
     while True:
         arcyd.run_once()
+        # print(arcyd.debug_log())
         yield
 
 
@@ -736,6 +748,57 @@ def _user_story_reviewers_as_title(repo):
     print("Check review landed")
     repo.bob.fetch()
     assert len(repo.bob.list_reviews()) == 0
+
+    yield "Finished"
+
+
+def _user_story_repush_deleted_tracker(repo):
+
+    tracker_prefix = 'refs/heads/dev/arcyd/trackers/rbranch/--/-/bad_prerev/'
+    ping_ref = tracker_prefix + 'r/ping/ping/none'
+
+    def print_cache():
+        print(phlsys_fs.read_text_file(
+            os.path.join(
+                repo._root_dir,
+                '..',
+                '..',
+                'arcyds',
+                'arcyd-0',
+                '.arcyd.urlwatcher.cache')))
+
+    yield "Startup"
+    print_cache()
+
+    print('push ping branch')
+    repo.alice.repo(
+        'push',
+        'origin',
+        'master:' + ping_ref)
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref in refs
+
+    yield "Removing ping branch"
+    print_cache()
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref not in refs
+
+    print('push ping branch again')
+    repo.alice.repo(
+        'push',
+        'origin',
+        'master:' + ping_ref)
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref in refs
+
+    yield "Removing ping branch again"
+    print_cache()
+
+    refs = phlgit_showref.names(repo.central_repo)
+    assert ping_ref not in refs
 
     yield "Finished"
 
