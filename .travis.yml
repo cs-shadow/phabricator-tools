@@ -45,7 +45,7 @@ before_script:
   # this script, Travis CI was not automatically picking up virtual host config
   # hence we had to use sudo instead.
   - sudo cp build/travis-ci-apache /etc/apache2/sites-available/default
-  - sudo sed -e "s?%TRAVIS_BUILD_DIR%?$(pwd)?g" --in-place /etc/apache2/sites-available/phab.conf
+  - sudo sed -e "s?%TRAVIS_BUILD_DIR%?$(pwd)?g" --in-place /etc/apache2/sites-available/default
   - sudo a2enmod rewrite
   - sudo service apache2 restart
 
