@@ -55,6 +55,7 @@ before_script:
 
 # command to run tests
 script:
+  - curl 127.0.0.1
   # - ./static_tests.sh
   - ./unit_tests.sh
 
