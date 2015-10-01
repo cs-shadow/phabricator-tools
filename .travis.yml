@@ -39,12 +39,12 @@ install:
   - pip install http://sourceforge.net/projects/pychecker/files/pychecker/0.8.19/pychecker-0.8.19.tar.gz/download
   - pip install pylint
   - pip install snakefood
-  - cp build/travis-ci-apache /etc/apache2/sites-available/phab.conf
-  - cp build/travis-ci-apache /etc/apache2/sites-enabled/phab.conf
 
 before_script:
   - git config --global user.email "tests@phab.test"
   - git config --global user.name "Test User"
+  - ls /etc/apache2/sites-available
+  - ls /etc/apache2/sites-enabled
 
 # command to run tests
 script:
