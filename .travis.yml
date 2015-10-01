@@ -43,8 +43,8 @@ install:
 before_script:
   - git config --global user.email "tests@phab.test"
   - git config --global user.name "Test User"
-  - ls /etc/apache2/sites-available
-  - ls /etc/apache2/sites-enabled
+  - cat /etc/apache2/sites-available/default
+  - cat /etc/apache2/sites-enabled/000-default
 
 # command to run tests
 script:
