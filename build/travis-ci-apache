@@ -1,4 +1,4 @@
-<VirtualHost *>
+<VirtualHost *:80>
   DocumentRoot %TRAVIS_BUILD_DIR%/phabricator/phabricator/webroot
 
   <Directory "%TRAVIS_BUILD_DIR%/phabricator/phabricator/webroot">
