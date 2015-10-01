@@ -49,6 +49,9 @@ before_script:
   - sudo sed -e "s?%TRAVIS_BUILD_DIR%?$(pwd)?g" --in-place /etc/apache2/sites-available/default
   - sudo a2enmod rewrite
   - sudo service apache2 restart
+  - sudo service mysql restart
+  - mysql < vagrant/puppet/phabricator/files/initial.db
+  - ./phabricator/phabricator/bin/storage upgrade --force
 
 # command to run tests
 script:
