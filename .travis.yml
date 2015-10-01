@@ -51,8 +51,10 @@ before_script:
   - sudo puppet apply vagrant/puppet/phabricator/manifests/default.pp --modulepath vagrant/puppet
 # command to run tests
 script:
+  - wget 127.0.0.1
+  - sudo cat /var/log/apache2/error.log
   # - ./static_tests.sh
-  - ./unit_tests.sh
+  # - ./unit_tests.sh
 
 notifications:
     email: false
