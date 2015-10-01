@@ -6,38 +6,38 @@ php:
 addons:
   apt:
     packages:
-    - python-pip
-    - python-virtualenv
-    - git
-    - mysql-server
-    - apache2
-    - dpkg-dev
-    - php5
-    - php5-mysql
-    - php5-gd
-    - php5-dev
-    - php5-curl
-    - php5-cli
-    - unzip
-    - wget
-    - time
+    # - python-pip
+    # - python-virtualenv
+    # - git
+    # - mysql-server
+    # - apache2
+    # - dpkg-dev
+    # - php5
+    # - php5-mysql
+    # - php5-gd
+    # - php5-dev
+    # - php5-curl
+    # - php5-cli
+    # - unzip
+    # - wget
+    # - time
 
 before_install:
   - ./download_phab.sh
 
 # Install dependencies using pip
 install:
-  - virtualenv venv
-  - source venv/bin/activate
-  - pip install autopep8
-  - pip install docformatter
-  - pip install flake8
-  - pip install nose
-  # TODO: Change this to 'pip install pycheker' once pycheker starts working
-  # with pip. pip install of pycheker is broken at the moment.
-  - pip install http://sourceforge.net/projects/pychecker/files/pychecker/0.8.19/pychecker-0.8.19.tar.gz/download
-  - pip install pylint
-  - pip install snakefood
+  # - virtualenv venv
+  # - source venv/bin/activate
+  # - pip install autopep8
+  # - pip install docformatter
+  # - pip install flake8
+  # - pip install nose
+  # # TODO: Change this to 'pip install pycheker' once pycheker starts working
+  # # with pip. pip install of pycheker is broken at the moment.
+  # - pip install http://sourceforge.net/projects/pychecker/files/pychecker/0.8.19/pychecker-0.8.19.tar.gz/download
+  # - pip install pylint
+  # - pip install snakefood
 
 before_script:
   - git config --global user.email "tests@phab.test"
@@ -56,8 +56,9 @@ before_script:
 # command to run tests
 script:
   - curl 127.0.0.1
+  - sudo cat /var/log/apache2/error.log
   # - ./static_tests.sh
-  - ./unit_tests.sh
+  # - ./unit_tests.sh
 
 notifications:
     email: false
