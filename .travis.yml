@@ -20,6 +20,7 @@ addons:
     - php5-cli
     - unzip
     - wget
+    - time
 
 before_install:
   - ./download_phab.sh
